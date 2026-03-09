@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## PathSeeker Frontend MVP
+
+PathSeeker MVP is a Next.js App Router application with:
+
+- Voice or text trip input
+- Trip parsing through Vercel AI SDK + AI Gateway
+- Route optimization + ETA from Google Routes API
+- Black/white shadcn-style UI with no animations
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure environment variables:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Required variables:
 
-## Learn More
+- `AI_GATEWAY_API_KEY`
+- `AI_MODEL` (default `openai/gpt-4.1-mini`)
+- `AI_GATEWAY_BASE_URL` (default `https://ai-gateway.vercel.sh/v1`)
+- `ELEVENLABS_API_KEY`
+- `GOOGLE_MAPS_API_KEY`
 
-To learn more about Next.js, take a look at the following resources:
+3. Run the app:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4. Run tests:
 
-## Deploy on Vercel
+```bash
+pnpm test
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API Endpoints
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/transcribe`  
+  `multipart/form-data` with `audio` file (`webm`/`wav`/`mpeg`)  
+  Response: `{ transcript: string }`
+
+- `POST /api/plan-route`  
+  Body: `{ prompt: string }`  
+  Response:
+  - `parsed`: extracted stops/deadline/notes
+  - `route`: optimized stop order + duration + arrival estimate
+  - `meta`: provider/model details
