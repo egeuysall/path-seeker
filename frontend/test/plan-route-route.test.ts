@@ -8,6 +8,10 @@ vi.mock("@/lib/providers/google-routes", () => ({
   computeOptimizedRoute: vi.fn(),
 }));
 
+vi.mock("@/lib/providers/stop-resolver", () => ({
+  resolveRouteStops: vi.fn(),
+}));
+
 vi.mock("@/lib/env", () => ({
   getAiGatewayConfig: vi.fn(() => ({
     model: "openai/gpt-4.1-mini",
@@ -18,10 +22,12 @@ vi.mock("@/lib/env", () => ({
 
 import { handlePlanRouteRequest } from "@/app/api/plan-route/route";
 import { computeOptimizedRoute } from "@/lib/providers/google-routes";
+import { resolveRouteStops } from "@/lib/providers/stop-resolver";
 import { extractTripDetails } from "@/lib/providers/trip-parser";
 
 const mockedExtractTripDetails = vi.mocked(extractTripDetails);
 const mockedComputeOptimizedRoute = vi.mocked(computeOptimizedRoute);
+const mockedResolveRouteStops = vi.mocked(resolveRouteStops);
 
 describe("handlePlanRouteRequest", () => {
   beforeEach(() => {
@@ -35,18 +41,41 @@ describe("handlePlanRouteRequest", () => {
       notes: [],
     });
 
+    mockedResolveRouteStops.mockResolvedValue({
+      notes: ["Used your current location for home."],
+      stops: [
+        { input: "Target", label: "Target, Evanston, IL", address: "Target, Evanston, IL" },
+        { input: "UPS", label: "UPS Store, Evanston, IL", address: "UPS Store, Evanston, IL" },
+        { input: "Home", label: "Home", address: "123 Main St, Evanston, IL" },
+      ],
+    });
+
     mockedComputeOptimizedRoute.mockResolvedValue({
-      orderedStops: ["Target", "UPS", "Home"],
+      orderedStops: ["Target, Evanston, IL", "UPS Store, Evanston, IL", "Home"],
       totalDurationText: "25 min",
       arrivalEstimate: new Date().toISOString(),
+      originLabel: "Current location",
     });
 
     const result = await handlePlanRouteRequest({
       prompt: "Target then UPS then home before 6",
+      locationBias: {
+        latitude: 42.0451,
+        longitude: -87.6877,
+      },
     });
 
     expect(result.parsed.stops).toEqual(["Target", "UPS", "Home"]);
+    expect(result.parsed.notes).toContain("Used your current location for home.");
     expect(result.meta.provider).toBe("google-routes");
+    expect(mockedComputeOptimizedRoute).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        origin: expect.objectContaining({
+          label: "Current location",
+        }),
+      }),
+    );
   });
 
   it("throws when prompt is invalid", async () => {
@@ -66,6 +95,14 @@ describe("handlePlanRouteRequest", () => {
     mockedExtractTripDetails.mockResolvedValue({
       stops: ["Target", "Home"],
       notes: [],
+    });
+
+    mockedResolveRouteStops.mockResolvedValue({
+      notes: [],
+      stops: [
+        { input: "Target", label: "Target, Evanston, IL", address: "Target, Evanston, IL" },
+        { input: "Home", label: "Home", address: "123 Main St, Evanston, IL" },
+      ],
     });
 
     mockedComputeOptimizedRoute.mockRejectedValue(new Error("Google failed"));

@@ -25,9 +25,11 @@ Required variables:
 
 - `AI_GATEWAY_API_KEY`
 - `AI_MODEL` (default `openai/gpt-4.1-mini`)
+- `OPENAI_API_KEY`
+- `AI_TRANSCRIPTION_MODEL` (default `gpt-4o-mini-transcribe`)
 - `AI_GATEWAY_BASE_URL` (default `https://ai-gateway.vercel.sh/v1`)
-- `ELEVENLABS_API_KEY`
 - `GOOGLE_MAPS_API_KEY`
+  This must be a server-side Routes API key. HTTP referrer-restricted browser keys will be rejected from the Next.js server.
 
 3. Run the app:
 

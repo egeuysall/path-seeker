@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,16 +11,42 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import type { RoutePlanResponse } from "@/lib/types";
+import type { RouteLocationBias, RoutePlanResponse } from "@/lib/types";
 
 type ApiFailure = {
   error?: {
     message?: string;
   };
 };
+
+type ReverseGeocodeResponse = {
+  address?: string;
+};
+
+const homeAddressStorageKey = "pathseeker.home-address";
+
+function getBrowserStorage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storage = window.localStorage;
+
+  if (
+    !storage ||
+    typeof storage.getItem !== "function" ||
+    typeof storage.setItem !== "function" ||
+    typeof storage.removeItem !== "function"
+  ) {
+    return null;
+  }
+
+  return storage;
+}
 
 function formatArrivalTime(isoValue?: string) {
   if (!isoValue) {
@@ -41,9 +67,12 @@ function extractApiError(payload: unknown, fallback: string) {
 }
 
 export function TripPlanner() {
+  const [homeAddress, setHomeAddress] = useState("");
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<RoutePlanResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<RouteLocationBias | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -53,6 +82,91 @@ export function TripPlanner() {
   const chunksRef = useRef<Blob[]>([]);
 
   const arrivalTime = useMemo(() => formatArrivalTime(result?.route.arrivalEstimate), [result]);
+
+  useEffect(() => {
+    const storage = getBrowserStorage();
+
+    if (!storage) {
+      return;
+    }
+
+    const stored = storage.getItem(homeAddressStorageKey);
+
+    if (stored) {
+      setHomeAddress(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    const storage = getBrowserStorage();
+
+    if (!storage) {
+      return;
+    }
+
+    if (homeAddress.trim().length === 0) {
+      storage.removeItem(homeAddressStorageKey);
+      return;
+    }
+
+    storage.setItem(homeAddressStorageKey, homeAddress.trim());
+  }, [homeAddress]);
+
+  function requestCurrentLocation() {
+    if (!navigator.geolocation) {
+      return Promise.resolve<RouteLocationBias | null>(null);
+    }
+
+    setIsLocating(true);
+
+    return new Promise<RouteLocationBias | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const nextLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+
+          setCurrentLocation(nextLocation);
+
+          try {
+            const response = await fetch("/api/reverse-geocode", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(nextLocation),
+            });
+
+            const payload = (await response.json()) as ReverseGeocodeResponse | ApiFailure;
+
+            if (!response.ok) {
+              throw new Error(extractApiError(payload, "Could not resolve your current location."));
+            }
+
+            if ("address" in payload && typeof payload.address === "string" && payload.address.length > 0) {
+              setHomeAddress(payload.address);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Could not resolve your current location.";
+            setErrorMessage(message);
+          } finally {
+            setIsLocating(false);
+            resolve(nextLocation);
+          }
+        },
+        () => {
+          setIsLocating(false);
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 300000,
+        },
+      );
+    });
+  }
 
   async function uploadAudio(blob: Blob) {
     const extension = blob.type.includes("wav") ? "wav" : "webm";
@@ -140,12 +254,22 @@ export function TripPlanner() {
     setResult(null);
 
     try {
+      let locationBias = currentLocation;
+
+      if (!locationBias) {
+        locationBias = await requestCurrentLocation();
+      }
+
       const response = await fetch("/api/plan-route", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          ...(homeAddress.trim().length > 0 ? { homeAddress: homeAddress.trim() } : {}),
+          ...(locationBias ? { locationBias } : {}),
+        }),
       });
 
       const payload = (await response.json()) as RoutePlanResponse | ApiFailure;
@@ -184,6 +308,29 @@ export function TripPlanner() {
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
+              <Label htmlFor="home-address">Home Address</Label>
+              <Input
+                id="home-address"
+                value={homeAddress}
+                onChange={(event) => setHomeAddress(event.target.value)}
+                placeholder="123 Main St, Evanston, IL 60201"
+              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-neutral-600">Saved locally and used when your trip mentions home.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void requestCurrentLocation();
+                  }}
+                  disabled={isLocating || isPlanning || isTranscribing}
+                >
+                  {isLocating ? "Getting Location..." : currentLocation ? "Location Ready" : "Use Current Location"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="trip-prompt">Request</Label>
               <Textarea
                 id="trip-prompt"
@@ -192,6 +339,9 @@ export function TripPlanner() {
                 placeholder="I need to go to Target, UPS, and home before 6 PM."
                 rows={5}
               />
+              <p className="text-xs text-neutral-600">
+                You can type vague stops. PathSeeker uses your current area and saved home address to resolve them.
+              </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -199,17 +349,19 @@ export function TripPlanner() {
                 type="button"
                 variant="outline"
                 onClick={isRecording ? stopRecording : startRecording}
-                disabled={isTranscribing || isPlanning}
+                disabled={isTranscribing || isPlanning || isLocating}
               >
                 {isRecording ? "Stop Recording" : "Record Voice"}
               </Button>
-              <Button type="submit" disabled={isPlanning || isTranscribing || prompt.trim().length === 0}>
+              <Button type="submit" disabled={isPlanning || isTranscribing || isLocating || prompt.trim().length === 0}>
                 {isPlanning ? "Planning Route..." : "Plan Route"}
               </Button>
             </div>
 
-            {(isTranscribing || isPlanning) && (
-              <p className="text-sm text-neutral-700">{isTranscribing ? "Transcribing audio..." : "Planning route..."}</p>
+            {(isTranscribing || isPlanning || isLocating) && (
+              <p className="text-sm text-neutral-700">
+                {isTranscribing ? "Transcribing audio..." : isLocating ? "Getting location..." : "Planning route..."}
+              </p>
             )}
 
             {errorMessage && <p className="text-sm font-medium text-black">{errorMessage}</p>}
@@ -221,52 +373,72 @@ export function TripPlanner() {
         <Card>
           <CardHeader>
             <CardTitle>Route Result</CardTitle>
-            <CardDescription>
-              Provider: {result.meta.provider} | Model: {result.meta.model}
-            </CardDescription>
+            <CardDescription>Resolved stops, optimized order, and trip timing.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <section className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Parsed Stops</h2>
-              <ul className="space-y-1 text-sm text-neutral-800">
-                {result.parsed.stops.map((stop) => (
-                  <li key={stop}>{stop}</li>
-                ))}
-              </ul>
-            </section>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Provider: {result.meta.provider}</Badge>
+              <Badge>Model: {result.meta.model}</Badge>
+              {result.route.originLabel && <Badge variant="outline">Starting From: {result.route.originLabel}</Badge>}
+            </div>
 
             <Separator />
 
-            <section className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Optimized Order</h2>
-              <ol className="space-y-1 text-sm text-neutral-800">
-                {result.route.orderedStops.map((stop, index) => (
-                  <li key={`${stop}-${index}`}>
-                    {index + 1}. {stop}
-                  </li>
-                ))}
-              </ol>
-            </section>
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
+              <Card className="bg-neutral-50">
+                <CardHeader className="space-y-4">
+                  <div className="space-y-2">
+                    <CardTitle className="text-base">Parsed Stops</CardTitle>
+                    <div className="flex flex-wrap gap-2">
+                      {result.parsed.stops.map((stop) => (
+                        <Badge key={stop} variant="outline">
+                          {stop}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <CardTitle className="text-base">Optimized Order</CardTitle>
+                    <ol className="space-y-2">
+                      {result.route.orderedStops.map((stop, index) => (
+                        <li
+                          key={`${stop}-${index}`}
+                          className="flex items-start gap-3 rounded-md border border-black/10 bg-white px-3 py-3 text-sm text-neutral-800"
+                        >
+                          <Badge className="min-w-6 justify-center px-2 py-1">{index + 1}</Badge>
+                          <span className="pt-0.5">{stop}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Separator />
-
-            <section className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Total Duration</h3>
-                <p className="text-sm text-black">{result.route.totalDurationText}</p>
+              <div className="grid gap-4">
+                <Card className="bg-neutral-50">
+                  <CardHeader>
+                    <CardDescription>Total Duration</CardDescription>
+                    <CardTitle className="text-3xl">{result.route.totalDurationText}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="bg-neutral-50">
+                  <CardHeader>
+                    <CardDescription>Estimated Arrival</CardDescription>
+                    <CardTitle className="text-3xl">{arrivalTime ?? "Unavailable"}</CardTitle>
+                  </CardHeader>
+                </Card>
+                {result.parsed.deadline && (
+                  <Card className="bg-neutral-50">
+                    <CardHeader>
+                      <CardDescription>Requested Deadline</CardDescription>
+                      <CardTitle className="text-base">{result.parsed.deadline}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                )}
               </div>
-              <div className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Estimated Arrival</h3>
-                <p className="text-sm text-black">{arrivalTime ?? "Unavailable"}</p>
-              </div>
-            </section>
-
-            {result.parsed.deadline && (
-              <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Requested Deadline</h3>
-                <p className="text-sm text-black">{result.parsed.deadline}</p>
-              </section>
-            )}
+            </div>
           </CardContent>
         </Card>
       )}

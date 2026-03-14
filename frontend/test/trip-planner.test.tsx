@@ -4,13 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TripPlanner } from "@/components/trip-planner";
 
+type MediaRecorderEvent = Event | { data: Blob };
+
 class MediaRecorderMock {
-  private listeners: Record<string, Array<(event?: any) => void>> = {};
+  private listeners: Record<string, Array<(event?: MediaRecorderEvent) => void>> = {};
   public mimeType = "audio/webm";
 
   constructor(private readonly _stream: MediaStream) {}
 
-  addEventListener(name: string, callback: (event?: any) => void) {
+  addEventListener(name: string, callback: (event?: MediaRecorderEvent) => void) {
     this.listeners[name] = this.listeners[name] ?? [];
     this.listeners[name].push(callback);
   }
@@ -45,6 +47,7 @@ describe("TripPlanner", () => {
           orderedStops: ["Target", "UPS", "Home"],
           totalDurationText: "32 min",
           arrivalEstimate: new Date().toISOString(),
+          originLabel: "Current location",
         },
         meta: {
           provider: "google-routes",
@@ -70,7 +73,8 @@ describe("TripPlanner", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Route Result")).toBeInTheDocument();
-      expect(screen.getByText("1. Target")).toBeInTheDocument();
+      expect(screen.getByText("Starting From: Current location")).toBeInTheDocument();
+      expect(screen.getAllByText("Target")).toHaveLength(2);
       expect(screen.getByText("32 min")).toBeInTheDocument();
     });
   });
@@ -137,5 +141,44 @@ describe("TripPlanner", () => {
     await waitFor(() => {
       expect(screen.getByText("Google Routes API request failed.")).toBeInTheDocument();
     });
+  });
+
+  it("fills home address from current location", async () => {
+    Object.defineProperty(global.navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success: (position: GeolocationPosition) => void) => {
+          success({
+            coords: {
+              latitude: 42.0451,
+              longitude: -87.6877,
+            },
+          } as GeolocationPosition);
+        },
+      },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ address: "123 Main St, Evanston, IL 60201" }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TripPlanner />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Use Current Location" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Home Address")).toHaveValue("123 Main St, Evanston, IL 60201");
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/reverse-geocode",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
   });
 });

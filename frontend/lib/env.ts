@@ -3,12 +3,14 @@ import type { ApiErrorCode } from "@/lib/types";
 type EnvKey =
   | "AI_GATEWAY_API_KEY"
   | "AI_MODEL"
+  | "AI_TRANSCRIPTION_MODEL"
   | "AI_GATEWAY_BASE_URL"
-  | "ELEVENLABS_API_KEY"
+  | "OPENAI_API_KEY"
   | "GOOGLE_MAPS_API_KEY";
 
 const defaults: Partial<Record<EnvKey, string>> = {
   AI_MODEL: "openai/gpt-4.1-mini",
+  AI_TRANSCRIPTION_MODEL: "gpt-4o-mini-transcribe",
   AI_GATEWAY_BASE_URL: "https://ai-gateway.vercel.sh/v1",
 };
 
@@ -40,12 +42,15 @@ export function getAiGatewayConfig() {
   };
 }
 
-export function getGoogleMapsApiKey() {
-  return getEnv("GOOGLE_MAPS_API_KEY");
+export function getAiTranscriptionConfig() {
+  return {
+    apiKey: getEnv("OPENAI_API_KEY"),
+    model: getEnv("AI_TRANSCRIPTION_MODEL"),
+  };
 }
 
-export function getElevenLabsApiKey() {
-  return getEnv("ELEVENLABS_API_KEY");
+export function getGoogleMapsApiKey() {
+  return getEnv("GOOGLE_MAPS_API_KEY");
 }
 
 export { EnvError };

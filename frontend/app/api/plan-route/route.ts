@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ApiRouteError, handleRouteError } from "@/lib/api-response";
 import { getAiGatewayConfig } from "@/lib/env";
 import { computeOptimizedRoute } from "@/lib/providers/google-routes";
+import { resolveRouteStops } from "@/lib/providers/stop-resolver";
 import { extractTripDetails } from "@/lib/providers/trip-parser";
 import { planRouteRequestSchema } from "@/lib/schemas/trip";
 import type { RoutePlanResponse } from "@/lib/types";
@@ -20,11 +21,30 @@ export async function handlePlanRouteRequest(input: unknown) {
     throw new ApiRouteError(400, "VALIDATION_ERROR", "At least two stops are required.");
   }
 
-  const route = await computeOptimizedRoute(parsed.stops);
+  const resolved = await resolveRouteStops(parsed.stops, {
+    homeAddress: parsedRequest.data.homeAddress,
+    locationBias: parsedRequest.data.locationBias,
+  });
+
+  const route = await computeOptimizedRoute(resolved.stops, {
+    ...(parsedRequest.data.locationBias
+      ? {
+          origin: {
+            input: "current-location",
+            label: "Current location",
+            location: parsedRequest.data.locationBias,
+          },
+        }
+      : {}),
+  });
   const config = getAiGatewayConfig();
+  const notes = [...(parsed.notes ?? []), ...resolved.notes];
 
   const response: RoutePlanResponse = {
-    parsed,
+    parsed: {
+      ...parsed,
+      ...(notes.length > 0 ? { notes } : {}),
+    },
     route,
     meta: {
       provider: "google-routes",

@@ -1,7 +1,14 @@
 import { z } from "zod";
 
+export const locationBiasSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
 export const planRouteRequestSchema = z.object({
   prompt: z.string().trim().min(1, "Prompt is required."),
+  homeAddress: z.string().trim().min(1).optional(),
+  locationBias: locationBiasSchema.optional(),
 });
 
 export const tripParseResultSchema = z.object({

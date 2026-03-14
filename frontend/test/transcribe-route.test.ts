@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/providers/elevenlabs", () => ({
+vi.mock("@/lib/providers/transcription", () => ({
   transcribeAudio: vi.fn(),
 }));
 
 import { handleTranscribeRequest } from "@/app/api/transcribe/route";
-import { transcribeAudio } from "@/lib/providers/elevenlabs";
+import { transcribeAudio } from "@/lib/providers/transcription";
 
 const mockedTranscribeAudio = vi.mocked(transcribeAudio);
 
@@ -32,6 +32,18 @@ describe("handleTranscribeRequest", () => {
     formData.append("audio", file);
 
     await expect(handleTranscribeRequest(formData)).rejects.toThrow("Unsupported audio format.");
+  });
+
+  it("accepts browser-recorded webm audio with codec metadata", async () => {
+    mockedTranscribeAudio.mockResolvedValue("go to target and home");
+
+    const formData = new FormData();
+    const file = new File([new Blob(["audio"])], "recording.webm", { type: "audio/webm;codecs=opus" });
+    formData.append("audio", file);
+
+    const result = await handleTranscribeRequest(formData);
+
+    expect(result.transcript).toBe("go to target and home");
   });
 
   it("rejects missing audio file", async () => {

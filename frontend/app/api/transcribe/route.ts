@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { ApiRouteError, handleRouteError } from "@/lib/api-response";
-import { transcribeAudio } from "@/lib/providers/elevenlabs";
+import { transcribeAudio } from "@/lib/providers/transcription";
 
-const allowedMimeTypes = new Set(["audio/webm", "audio/wav", "audio/x-wav", "audio/mpeg"]);
+const allowedMimeTypePrefixes = ["audio/webm", "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3"];
+
+function isAllowedAudioType(mimeType: string) {
+  return allowedMimeTypePrefixes.some((prefix) => mimeType === prefix || mimeType.startsWith(`${prefix};`));
+}
 
 export async function handleTranscribeRequest(formData: FormData) {
   const fileValue = formData.get("audio");
@@ -12,7 +16,7 @@ export async function handleTranscribeRequest(formData: FormData) {
     throw new ApiRouteError(400, "BAD_REQUEST", "Audio file is required.");
   }
 
-  if (!allowedMimeTypes.has(fileValue.type)) {
+  if (!isAllowedAudioType(fileValue.type)) {
     throw new ApiRouteError(400, "BAD_REQUEST", "Unsupported audio format.");
   }
 

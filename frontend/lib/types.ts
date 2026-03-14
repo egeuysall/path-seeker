@@ -10,16 +10,30 @@ export type ApiError = {
   message: string;
 };
 
+export type RouteLocationBias = {
+  latitude: number;
+  longitude: number;
+};
+
 export type TripParseResult = {
   stops: string[];
   deadline?: string;
   notes?: string[];
 };
 
+export type ResolvedRouteStop = {
+  input: string;
+  label: string;
+  address?: string;
+  location?: RouteLocationBias;
+  isHome?: boolean;
+};
+
 export type RoutePlan = {
   orderedStops: string[];
   totalDurationText: string;
   arrivalEstimate?: string;
+  originLabel?: string;
 };
 
 export type RoutePlanResponse = {
@@ -33,4 +47,6 @@ export type RoutePlanResponse = {
 
 export type PlanRouteRequest = {
   prompt: string;
+  homeAddress?: string;
+  locationBias?: RouteLocationBias;
 };
