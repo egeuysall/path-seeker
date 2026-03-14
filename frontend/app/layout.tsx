@@ -1,24 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist, Lora } from "next/font/google";
 
 import "./globals.css";
-import { cn } from "@/lib/utils";
-
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const lora = Lora({
+  variable: "--font-lora",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "PathSeeker MVP",
-  description: "Voice and text route planning MVP with AI extraction and Google route optimization.",
+  title: "PathSeeker",
+  description: "Voice and text route planning with AI extraction, transcription, and Google route optimization.",
 };
 
 export default function RootLayout({
@@ -27,8 +24,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans", inter.variable)}>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${lora.variable}`}>
+      <body className="antialiased" style={{ fontFamily: "var(--font-geist-sans), sans-serif" }}>
+        <style>{`
+          h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-lora), Georgia, serif;
+          }
+        `}</style>
+        {children}
+      </body>
     </html>
   );
 }

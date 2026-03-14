@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { RouteLocationBias, RoutePlanResponse } from "@/lib/types";
 
@@ -71,7 +70,8 @@ export function TripPlanner() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<RoutePlanResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [currentLocation, setCurrentLocation] = useState<RouteLocationBias | null>(null);
+  const [currentLocation, setCurrentLocation] =
+    useState<RouteLocationBias | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -81,7 +81,10 @@ export function TripPlanner() {
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const arrivalTime = useMemo(() => formatArrivalTime(result?.route.arrivalEstimate), [result]);
+  const arrivalTime = useMemo(
+    () => formatArrivalTime(result?.route.arrivalEstimate),
+    [result],
+  );
 
   useEffect(() => {
     const storage = getBrowserStorage();
@@ -138,17 +141,31 @@ export function TripPlanner() {
               body: JSON.stringify(nextLocation),
             });
 
-            const payload = (await response.json()) as ReverseGeocodeResponse | ApiFailure;
+            const payload = (await response.json()) as
+              | ReverseGeocodeResponse
+              | ApiFailure;
 
             if (!response.ok) {
-              throw new Error(extractApiError(payload, "Could not resolve your current location."));
+              throw new Error(
+                extractApiError(
+                  payload,
+                  "Could not resolve your current location.",
+                ),
+              );
             }
 
-            if ("address" in payload && typeof payload.address === "string" && payload.address.length > 0) {
+            if (
+              "address" in payload &&
+              typeof payload.address === "string" &&
+              payload.address.length > 0
+            ) {
               setHomeAddress(payload.address);
             }
           } catch (error) {
-            const message = error instanceof Error ? error.message : "Could not resolve your current location.";
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Could not resolve your current location.";
             setErrorMessage(message);
           } finally {
             setIsLocating(false);
@@ -170,7 +187,9 @@ export function TripPlanner() {
 
   async function uploadAudio(blob: Blob) {
     const extension = blob.type.includes("wav") ? "wav" : "webm";
-    const file = new File([blob], `recording.${extension}`, { type: blob.type || "audio/webm" });
+    const file = new File([blob], `recording.${extension}`, {
+      type: blob.type || "audio/webm",
+    });
 
     const formData = new FormData();
     formData.append("audio", file);
@@ -187,12 +206,15 @@ export function TripPlanner() {
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(extractApiError(payload, "Could not transcribe audio."));
+        throw new Error(
+          extractApiError(payload, "Could not transcribe audio."),
+        );
       }
 
       setPrompt(payload.transcript ?? "");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not transcribe audio.";
+      const message =
+        error instanceof Error ? error.message : "Could not transcribe audio.";
       setErrorMessage(message);
     } finally {
       setIsTranscribing(false);
@@ -267,7 +289,9 @@ export function TripPlanner() {
         },
         body: JSON.stringify({
           prompt,
-          ...(homeAddress.trim().length > 0 ? { homeAddress: homeAddress.trim() } : {}),
+          ...(homeAddress.trim().length > 0
+            ? { homeAddress: homeAddress.trim() }
+            : {}),
           ...(locationBias ? { locationBias } : {}),
         }),
       });
@@ -280,7 +304,8 @@ export function TripPlanner() {
 
       setResult(payload as RoutePlanResponse);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not plan route.";
+      const message =
+        error instanceof Error ? error.message : "Could not plan route.";
       setErrorMessage(message);
     } finally {
       setIsPlanning(false);
@@ -290,12 +315,13 @@ export function TripPlanner() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
       <header className="space-y-4">
-        <Badge variant="outline">MVP</Badge>
         <div className="space-y-2">
-          <h1 className="text-4xl font-semibold tracking-tight text-black">PathSeeker</h1>
+          <h1 className="text-4xl font-semibold tracking-tight text-black">
+            PathSeeker
+          </h1>
           <p className="max-w-2xl text-sm text-neutral-700">
-            Describe your errands in plain language. PathSeeker extracts stops, optimizes your route, and returns
-            a traffic-aware ETA.
+            Describe your errands in plain language. PathSeeker extracts stops,
+            optimizes your route, and returns a traffic-aware ETA.
           </p>
         </div>
       </header>
@@ -303,7 +329,9 @@ export function TripPlanner() {
       <Card>
         <CardHeader>
           <CardTitle>Trip Request</CardTitle>
-          <CardDescription>Voice or text input with AI-powered stop extraction.</CardDescription>
+          <CardDescription>
+            Voice or text input with AI-powered stop extraction.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -316,7 +344,9 @@ export function TripPlanner() {
                 placeholder="123 Main St, Evanston, IL 60201"
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-neutral-600">Saved locally and used when your trip mentions home.</p>
+                <p className="text-xs text-neutral-600">
+                  Saved locally and used when your trip mentions home.
+                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -325,7 +355,11 @@ export function TripPlanner() {
                   }}
                   disabled={isLocating || isPlanning || isTranscribing}
                 >
-                  {isLocating ? "Getting Location..." : currentLocation ? "Location Ready" : "Use Current Location"}
+                  {isLocating
+                    ? "Getting Location..."
+                    : currentLocation
+                      ? "Location Ready"
+                      : "Use Current Location"}
                 </Button>
               </div>
             </div>
@@ -340,7 +374,8 @@ export function TripPlanner() {
                 rows={5}
               />
               <p className="text-xs text-neutral-600">
-                You can type vague stops. PathSeeker uses your current area and saved home address to resolve them.
+                You can type vague stops. PathSeeker uses your current area and
+                saved home address to resolve them.
               </p>
             </div>
 
@@ -353,18 +388,32 @@ export function TripPlanner() {
               >
                 {isRecording ? "Stop Recording" : "Record Voice"}
               </Button>
-              <Button type="submit" disabled={isPlanning || isTranscribing || isLocating || prompt.trim().length === 0}>
+              <Button
+                type="submit"
+                disabled={
+                  isPlanning ||
+                  isTranscribing ||
+                  isLocating ||
+                  prompt.trim().length === 0
+                }
+              >
                 {isPlanning ? "Planning Route..." : "Plan Route"}
               </Button>
             </div>
 
             {(isTranscribing || isPlanning || isLocating) && (
               <p className="text-sm text-neutral-700">
-                {isTranscribing ? "Transcribing audio..." : isLocating ? "Getting location..." : "Planning route..."}
+                {isTranscribing
+                  ? "Transcribing audio..."
+                  : isLocating
+                    ? "Getting location..."
+                    : "Planning route..."}
               </p>
             )}
 
-            {errorMessage && <p className="text-sm font-medium text-black">{errorMessage}</p>}
+            {errorMessage && (
+              <p className="text-sm font-medium text-black">{errorMessage}</p>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -373,22 +422,26 @@ export function TripPlanner() {
         <Card>
           <CardHeader>
             <CardTitle>Route Result</CardTitle>
-            <CardDescription>Resolved stops, optimized order, and trip timing.</CardDescription>
+            <CardDescription>
+              Resolved stops, optimized order, and trip timing.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">Provider: {result.meta.provider}</Badge>
               <Badge>Model: {result.meta.model}</Badge>
-              {result.route.originLabel && <Badge variant="outline">Starting From: {result.route.originLabel}</Badge>}
+              {result.route.originLabel && (
+                <Badge variant="outline">
+                  Starting From: {result.route.originLabel}
+                </Badge>
+              )}
             </div>
-
-            <Separator />
 
             <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
               <Card className="bg-neutral-50">
                 <CardHeader className="space-y-4">
                   <div className="space-y-2">
-                    <CardTitle className="text-base">Parsed Stops</CardTitle>
+                    <CardDescription>Parsed Stops</CardDescription>
                     <div className="flex flex-wrap gap-2">
                       {result.parsed.stops.map((stop) => (
                         <Badge key={stop} variant="outline">
@@ -400,14 +453,16 @@ export function TripPlanner() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-2">
-                    <CardTitle className="text-base">Optimized Order</CardTitle>
+                    <CardDescription>Optimized Order</CardDescription>
                     <ol className="space-y-2">
                       {result.route.orderedStops.map((stop, index) => (
                         <li
                           key={`${stop}-${index}`}
                           className="flex items-start gap-3 rounded-md border border-black/10 bg-white px-3 py-3 text-sm text-neutral-800"
                         >
-                          <Badge className="min-w-6 justify-center px-2 py-1">{index + 1}</Badge>
+                          <Badge className="min-w-6 justify-center px-2 py-1">
+                            {index + 1}
+                          </Badge>
                           <span className="pt-0.5">{stop}</span>
                         </li>
                       ))}
@@ -420,20 +475,26 @@ export function TripPlanner() {
                 <Card className="bg-neutral-50">
                   <CardHeader>
                     <CardDescription>Total Duration</CardDescription>
-                    <CardTitle className="text-3xl">{result.route.totalDurationText}</CardTitle>
+                    <CardTitle className="text-3xl">
+                      {result.route.totalDurationText}
+                    </CardTitle>
                   </CardHeader>
                 </Card>
                 <Card className="bg-neutral-50">
                   <CardHeader>
                     <CardDescription>Estimated Arrival</CardDescription>
-                    <CardTitle className="text-3xl">{arrivalTime ?? "Unavailable"}</CardTitle>
+                    <CardTitle className="text-3xl">
+                      {arrivalTime ?? "Unavailable"}
+                    </CardTitle>
                   </CardHeader>
                 </Card>
                 {result.parsed.deadline && (
                   <Card className="bg-neutral-50">
                     <CardHeader>
                       <CardDescription>Requested Deadline</CardDescription>
-                      <CardTitle className="text-base">{result.parsed.deadline}</CardTitle>
+                      <CardTitle className="text-3xl">
+                        {result.parsed.deadline}
+                      </CardTitle>
                     </CardHeader>
                   </Card>
                 )}
